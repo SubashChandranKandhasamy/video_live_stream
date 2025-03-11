@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Videos</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome, <%= userEmail %></h1>
+
+    <!-- Go Live Button -->
+    <a href="/live" class="go-live-button">Go Live</a>
+
+    <!-- Upload Video Section -->
+    <h2>Upload Video</h2>
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+      <label for="title">Video Title:</label>
+      <input type="text" id="title" name="title" required>
+      <label for="video">Upload Video:</label>
+      <input type="file" id="video" name="video" accept="video/*" required>
+      <button type="submit">Upload</button>
+    </form>
+
+    <!-- Live Streams Section -->
+    <h2>Ongoing Live Streams</h2>
+    <div id="liveStreams" class="video-list">
+      <!-- Live streams will be dynamically added here -->
+    </div>
+
+    <!-- Uploaded Videos Section -->
+    <h2>Uploaded Videos</h2>
+    <div class="video-list">
+      <% if (videos.length > 0) { %>
+        <% videos.forEach(video => { %>
+          <div class="video-item">
+            <h3><%= video.title %></h3>
+            <video controls width="400">
+              <source src="/uploads/<%= video.filename %>" type="video/mp4">
+              Your browser does not support the video tag.
+            </video>
+            <p>Uploaded by: <%= video.user.email %></p>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <p>No uploaded videos found.</p>
+      <% } %>
+    </div>
+    <a href="/logout">Logout</a>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const liveStreamsContainer = document.getElementById('liveStreams');
+  
+    // Listen for updates to active streams
+    socket.on('updateStreams', (streams) => {
+      liveStreamsContainer.innerHTML = ''; // Clear existing streams
+  
+      if (streams.length > 0) {
+        streams.forEach(stream => {
+          const streamElement = document.createElement('div');
+          streamElement.className = 'video-item';
+          streamElement.innerHTML = `
+            <h3>Live Stream by: ${stream.userEmail}</h3>
+            <video id="remoteVideo-${stream.id}" autoplay></video>
+            <button onclick="watchStream('${stream.id}')">Watch Live</button>
+          `;
+          liveStreamsContainer.appendChild(streamElement);
+        });
+      } else {
+        liveStreamsContainer.innerHTML = '<p>No ongoing live streams.</p>';
+      }
+    });
+  
+    // Function to watch a live stream
+    function watchStream(streamId) {
+      const remoteVideo = document.getElementById(`remoteVideo-${streamId}`);
+  
+      // Create a new peer connection for the viewer
+      const peer = new SimplePeer({ initiator: false });
+  
+      peer.on('signal', (data) => {
+        socket.emit('stream', { streamId, signalData: data }); // Send signaling data to the server
+      });
+  
+      socket.on('stream', (data) => {
+        if (data.streamId === streamId) {
+          peer.signal(data.signalData); // Receive signaling data from the server
+        }
+      });
+  
+      peer.on('stream', (stream) => {
+        remoteVideo.srcObject = stream; // Display the live stream
+      });
+    }
+  </script>
+</body>
+</html>

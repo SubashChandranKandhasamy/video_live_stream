@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Streaming</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Live Streaming</h1>
+    <p>Logged in as: <%= userEmail %></p>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+    <button id="startButton">Start Streaming (Camera)</button>
+    <button id="startScreenButton">Start Screen Sharing</button>
+    <button id="stopButton">Stop Streaming</button>
+    <a href="/videos">Back to Videos</a>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-peer/9.11.1/simplepeer.min.js"></script>
+  <script>
+    const socket = io();
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const startButton = document.getElementById('startButton');
+    const startScreenButton = document.getElementById('startScreenButton');
+    const stopButton = document.getElementById('stopButton');
+
+    let localStream;
+    let peer;
+
+    // Start streaming with camera and microphone
+    // Start streaming with camera and microphone
+async function startStreaming() {
+  try {
+    console.log('Requesting user media...');
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    console.log('User media accessed successfully');
+    localVideo.srcObject = localStream;
+
+    // Emit startStream event to the server
+    socket.emit('startStream', { userEmail: '<%= userEmail %>' });
+
+    setupPeerConnection();
+  } catch (error) {
+    console.error('Error accessing media devices:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+// Start screen sharing
+async function startScreenSharing() {
+  try {
+    console.log('Requesting screen sharing...');
+    localStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    console.log('Screen sharing started');
+    localVideo.srcObject = localStream;
+
+    // Emit startStream event to the server
+    socket.emit('startStream', { userEmail: '<%= userEmail %>' });
+
+    setupPeerConnection();
+  } catch (error) {
+    console.error('Error starting screen sharing:', error);
+    alert(`Error: ${error.message}`);
+  }
+}
+
+    // Set up WebRTC peer connection
+    function setupPeerConnection() {
+      console.log('Creating peer connection...');
+      peer = new SimplePeer({ initiator: true, stream: localStream });
+
+      peer.on('signal', (data) => {
+        console.log('Sending signaling data:', data);
+        socket.emit('stream', data); // Send signaling data to the server
+      });
+
+      socket.on('stream', (data) => {
+        console.log('Received signaling data:', data);
+        if (!peer) {
+          console.log('Creating peer connection for receiver...');
+          peer = new SimplePeer({ initiator: false, stream: localStream });
+          peer.on('signal', (data) => {
+            console.log('Sending signaling data from receiver:', data);
+            socket.emit('stream', data); // Send signaling data to the server
+          });
+          peer.on('stream', (stream) => {
+            console.log('Received remote stream');
+            remoteVideo.srcObject = stream; // Display remote stream
+          });
+        }
+        peer.signal(data); // Receive signaling data from the server
+      });
+
+      peer.on('stream', (stream) => {
+        console.log('Received remote stream');
+        remoteVideo.srcObject = stream; // Display remote stream
+      });
+    }
+
+    // Stop streaming
+    function stopStreaming() {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localVideo.srcObject = null;
+      }
+      if (peer) {
+        peer.destroy();
+        peer = null;
+      }
+    }
+
+    startButton.addEventListener('click', startStreaming);
+    startScreenButton.addEventListener('click', startScreenSharing);
+    stopButton.addEventListener('click', stopStreaming);
+  </script>
+</body>
+</html>

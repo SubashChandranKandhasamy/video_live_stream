@@ -169,32 +169,6 @@ app.get('/live', (req, res) => {
   res.render('live', { userEmail: req.session.userEmail });
 });
 
-// Socket.io for live streaming
-io.on('connection', (socket) => {
-  console.log('A user connected');
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected');
-  });
-
-  // Broadcast signaling data to all clients
-  socket.on('stream', (data) => {
-    socket.broadcast.emit('stream', data);
-  });
-});
-
-// Logout Route
-app.get('/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      console.error('Error destroying session:', err);
-      return res.status(500).send('Internal Server Error');
-    }
-    res.redirect('/');
-  });
-});
-
-// Track active live streams
 // Track active live streams
 const activeStreams = [];
 
@@ -223,6 +197,18 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('stream', data);
   });
 });
+
+// Logout Route
+app.get('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Error destroying session:', err);
+      return res.status(500).send('Internal Server Error');
+    }
+    res.redirect('/');
+  });
+});
+
 // Start the server
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
